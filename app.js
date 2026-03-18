@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
         99: { desc: 'Сильная гроза с градом', icon: '⛈️' }
     };
 
+    let countriesData = [];
     let citiesData = [];
 
     // Load countries on start
@@ -46,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     countrySelect.addEventListener('change', (e) => {
         const country = e.target.value;
-        fetchCities(country);
+        filterCities(country);
         
         // Hide weather card and change state
         weatherCard.classList.add('hidden');
@@ -56,8 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     citySelect.addEventListener('change', (e) => {
-        const cityId = parseInt(e.target.value);
-        const cityInfo = citiesData.find(c => c.id === cityId);
+        const cityName = e.target.value;
+        const cityInfo = citiesData.find(c => c.city === cityName);
         if (cityInfo) {
             fetchWeather(cityInfo);
         }
@@ -65,11 +66,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchCountries() {
         try {
-            const response = await fetch('/api/countries');
+            const response = await fetch('countries.json');
             if (!response.ok) throw new Error('Ошибка сети');
-            const countries = await response.json();
+            countriesData = await response.json();
             
-            countries.forEach(country => {
+            const uniqueCountries = [...new Set(countriesData.map(item => item.country))].sort();
+            
+            uniqueCountries.forEach(country => {
                 const option = document.createElement('option');
                 option.value = country;
                 option.textContent = country;
@@ -80,26 +83,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function fetchCities(country) {
+    function filterCities(country) {
         citySelect.innerHTML = '<option value="" disabled selected>Выберите город</option>';
         citySelect.disabled = true;
         
-        try {
-            const response = await fetch(`/api/cities/${encodeURIComponent(country)}`);
-            if (!response.ok) throw new Error('Ошибка сети');
-            citiesData = await response.json();
-            
-            citiesData.forEach(city => {
-                const option = document.createElement('option');
-                option.value = city.id;
-                option.textContent = city.city;
-                citySelect.appendChild(option);
-            });
-            
-            citySelect.disabled = false;
-        } catch (error) {
-            showError('Не удалось загрузить список городов.');
-        }
+        citiesData = countriesData.filter(item => item.country === country).sort((a, b) => a.city.localeCompare(b.city));
+        
+        citiesData.forEach(city => {
+            const option = document.createElement('option');
+            option.value = city.city;
+            option.textContent = city.city;
+            citySelect.appendChild(option);
+        });
+        
+        citySelect.disabled = false;
     }
 
     async function fetchWeather(cityInfo) {
@@ -109,7 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
         errorMessage.classList.add('hidden');
 
         try {
-            const response = await fetch(`/api/weather?lat=${cityInfo.latitude}&lon=${cityInfo.longitude}`);
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${cityInfo.latitude}&longitude=${cityInfo.longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&timezone=auto`;
+            
+            const response = await fetch(url);
             if (!response.ok) throw new Error('Ошибка при получении погоды');
             const data = await response.json();
             
